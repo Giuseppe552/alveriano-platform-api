@@ -73,3 +73,29 @@ crash.*.log
 # Keep these ignored unless you explicitly want to ship them
 # =========================
 *.map
+
+# --- Supabase CLI local state ---
+supabase/.temp/
+supabase/.branches/
+supabase/.cache/
+supabase/.env
+supabase/.env.*
+supabase/.gitignore
+
+# --- Local env / secrets ---
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- Logs / coverage ---
+*.log
+coverage/
+.nyc_output/
+
+# --- OS / editor ---
+.DS_Store
+.vscode/
+.idea/
