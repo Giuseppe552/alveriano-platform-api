@@ -1,0 +1,75 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+.pnpm-store/
+.yarn/
+.yarn-cache/
+.npm/
+
+# =========================
+# Build output
+# =========================
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# =========================
+# Env / secrets (never commit)
+# =========================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets*.json
+secrets*.yaml
+secrets*.yml
+
+# =========================
+# Logs / debug
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# =========================
+# OS / editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+*.tmp
+
+# =========================
+# Terraform / Infra artifacts (sometimes copied around)
+# =========================
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.auto.tfvars
+*.tfvars
+
+# =========================
+# Archives / packages
+# =========================
+*.zip
+*.tar
+*.tar.gz
+
+# =========================
+# Source maps (optional)
+# Keep these ignored unless you explicitly want to ship them
+# =========================
+*.map
