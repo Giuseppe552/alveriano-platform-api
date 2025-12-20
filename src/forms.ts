@@ -150,7 +150,7 @@ const InputSchema = z.object({
   phone: z.string().trim().max(MAX_PHONE_LEN).optional().nullable(),
   sourceUrl: z.string().trim().max(MAX_SOURCE_URL_LEN).optional().nullable(),
 
-  payload: z.record(z.unknown()).optional().nullable(),
+  payload: z.record(z.string(), z.unknown()).optional().nullable(),
 
   submissionKey: z.string().trim().max(MAX_SUBMISSION_KEY_LEN).optional().nullable(),
   status: z.enum(["new", "pending_payment", "converted", "spam", "error"]).optional(),
@@ -214,7 +214,7 @@ export async function createFormSubmission(
 
   // Idempotent path (insert-first; on duplicate, fetch existing)
   if (submissionKey) {
-    const ins = await supabase
+    const ins: any = await supabase
       .from("form_submissions")
       .insert(row as any)
       .select(selectCols)
@@ -225,7 +225,7 @@ export async function createFormSubmission(
     }
 
     if (ins.error && isUniqueViolation(ins.error)) {
-      const existing = await supabase
+      const { data: existingData, error: existingError } = await supabase
         .from("form_submissions")
         .select(selectCols)
         .eq("site", site)
@@ -233,7 +233,7 @@ export async function createFormSubmission(
         .eq("submission_key", submissionKey)
         .single();
 
-      if (existing.error || !existing.data) {
+      if (existingError || !existingData) {
         // If we can't read the existing row, treat as infra failure.
         // This should trigger retry upstream.
         throw new FormError(
@@ -243,7 +243,7 @@ export async function createFormSubmission(
         );
       }
 
-      return existing.data as FormSubmissionRow;
+      return existingData as FormSubmissionRow;
     }
 
     // Non-unique DB error

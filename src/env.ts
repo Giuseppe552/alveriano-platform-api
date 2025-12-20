@@ -2,15 +2,15 @@ import dotenv from "dotenv";
 import { z } from "zod";
 
 const IS_LAMBDA = Boolean(
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-    (process.env.AWS_EXECUTION_ENV ?? "").includes("AWS_Lambda")
+  process.env["AWS_LAMBDA_FUNCTION_NAME"] ||
+    (process.env["AWS_EXECUTION_ENV"] ?? "").includes("AWS_Lambda")
 );
 
 const AppEnvSchema = z.enum(["local", "dev", "staging", "prod"]);
 export type AppEnv = z.infer<typeof AppEnvSchema>;
 
 function resolveAppEnv(): AppEnv {
-  const raw = (process.env.APP_ENV ?? "").trim().toLowerCase();
+  const raw = (process.env["APP_ENV"] ?? "").trim().toLowerCase();
 
   // Never silently default inside AWS. Misconfig should crash loudly.
   if (!raw) {
@@ -93,12 +93,12 @@ const StripeWebhookSecret = NonEmpty.superRefine((val, ctx) => {
 function readEnv(): Record<string, string | undefined> {
   // keep it explicit: avoids accidentally validating random env noise
   return {
-    SUPABASE_URL: process.env.SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-    LOG_LEVEL: process.env.LOG_LEVEL,
-    AWS_REGION: process.env.AWS_REGION,
+    SUPABASE_URL: process.env["SUPABASE_URL"],
+    SUPABASE_SERVICE_ROLE_KEY: process.env["SUPABASE_SERVICE_ROLE_KEY"],
+    STRIPE_SECRET_KEY: process.env["STRIPE_SECRET_KEY"],
+    STRIPE_WEBHOOK_SECRET: process.env["STRIPE_WEBHOOK_SECRET"],
+    LOG_LEVEL: process.env["LOG_LEVEL"],
+    AWS_REGION: process.env["AWS_REGION"],
   };
 }
 

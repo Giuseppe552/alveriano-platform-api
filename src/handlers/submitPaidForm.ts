@@ -79,9 +79,9 @@ function cleanStr(v: unknown): string | null {
   return s.length ? s : null;
 }
 
-function clampMetadata(v: unknown): string | undefined {
+function clampMetadata(v: unknown): string | null {
   const s = cleanStr(v);
-  if (!s) return undefined;
+  if (!s) return null;
   return s.length > MAX_METADATA_LEN ? s.slice(0, MAX_METADATA_LEN) : s;
 }
 
@@ -196,7 +196,7 @@ const SubmitPaidFormSchema = z.object({
 
   sourceUrl: z.string().trim().url().max(2048).optional(),
 
-  payload: z.record(z.unknown()).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
 
   payment: z.object({
     // Client-provided values are NOT trusted; but we validate them so the UI doesn’t send garbage.
@@ -211,10 +211,10 @@ const SubmitPaidFormSchema = z.object({
 function buildIdempotencyKey(input: {
   site: string;
   formSlug: string;
-  email?: string;
-  sourceUrl?: string;
-  payload?: Record<string, unknown>;
-  provided?: string | null;
+  email?: string | undefined;
+  sourceUrl?: string | undefined;
+  payload?: Record<string, unknown> | undefined;
+  provided?: string | null | undefined;
 }): string {
   const provided = normalizeIdempotencyKey(input.provided);
   if (provided) return provided;
@@ -315,7 +315,7 @@ export async function handleSubmitPaidForm(
       description: pricing.description,
 
       // Receipt email if present (safe, validated)
-      receipt_email: email ?? undefined,
+      ...(email ? { receipt_email: email } : {}),
 
       // Metadata must be short strings. Do not dump payload/PII.
       metadata: {
@@ -330,7 +330,7 @@ export async function handleSubmitPaidForm(
     },
     { idempotencyKey: stripeIdempotencyKey }
   );
-
+  
   if (!paymentIntent.client_secret) {
     throw new SubmitPaidFormError(
       502,
