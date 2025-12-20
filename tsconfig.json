@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
 
     "module": "commonjs",
     "moduleResolution": "node",
@@ -13,7 +13,9 @@
 
     "noEmitOnError": true,
     "incremental": true,
-    "tsBuildInfoFile": "./.tsbuildinfo",
+    "tsBuildInfoFile": "./.cache/tsbuildinfo",
+
+    "types": ["node"],
 
     "esModuleInterop": true,
     "resolveJsonModule": true,
@@ -31,7 +33,7 @@
 
     "skipLibCheck": false,
 
-    "sourceMap": false
+    "sourceMap": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
