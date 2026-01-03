@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from "crypto";
+// src/handlers/submitPaidForm.ts
+import { createHash } from "crypto";
 import { z } from "zod";
 import { createFormSubmission, type FormSubmissionInput } from "../forms";
 import { stripe } from "../stripeClient";
@@ -50,26 +51,69 @@ const MAX_METADATA_LEN = 120;
  * Add every paid form here. If it’s not here, it’s not payable in prod.
  * This prevents “£0.01 for £499 service” attacks.
  *
- * Structure:
- * { [site]: { [formSlug]: { amountCents, currency, description } } }
+ * Supports:
+ * - fixed pricing per (site, formSlug)
+ * - tiered pricing per (site, formSlug) keyed by payload field (default: payload.choice)
  */
-const PAID_FORM_CATALOG: Record<
-  string,
-  Record<
+
+type FixedPricing = {
+  type: "fixed";
+  amountCents: number;
+  currency: string;
+  description: string;
+};
+
+type TieredPricing = {
+  type: "tiered";
+  currency: string;
+  /**
+   * Which payload key selects the tier (default "choice").
+   * Your Resinaro passport flow uses payload.choice = "ap-1" | "ap-2" | "ap-3".
+   */
+  tierKey?: string;
+  tiers: Record<
     string,
     {
       amountCents: number;
-      currency: string;
       description: string;
     }
-  >
-> = {
-  // EXAMPLES (replace with your real paid offerings)
-  // resinaro: {
-  //   passport_service: { amountCents: 4999, currency: "gbp", description: "Resinaro: Passport service" },
-  // },
+  >;
+};
+
+type PricingEntry = FixedPricing | TieredPricing;
+
+const PAID_FORM_CATALOG: Record<string, Record<string, PricingEntry>> = {
+  resinaro: {
+    /**
+     * Resinaro passport appointment (12+): tiered by payload.choice
+     * MUST match your Next.js route.ts:
+     *   const FORM_SLUG = "passport_appointment_12plus"
+     *   payload.choice: "ap-1" | "ap-2" | "ap-3"
+     */
+    passport_appointment_12plus: {
+      type: "tiered",
+      currency: "gbp",
+      tierKey: "choice",
+      tiers: {
+        "ap-1": {
+          amountCents: 4000,
+          description: "Resinaro — Italian passport appointment (12+) — AP-1",
+        },
+        "ap-2": {
+          amountCents: 7800,
+          description: "Resinaro — Italian passport appointment (12+) — AP-2",
+        },
+        "ap-3": {
+          amountCents: 11500,
+          description: "Resinaro — Italian passport appointment (12+) — AP-3",
+        },
+      },
+    },
+  },
+
+  // Add other paid forms here over time (fixed or tiered).
   // saltaireguide: {
-  //   featured_listing: { amountCents: 3000, currency: "gbp", description: "SaltaireGuide: Featured listing" },
+  //   featured_listing: { type: "fixed", amountCents: 3000, currency: "gbp", description: "SaltaireGuide — Featured listing" },
   // },
 };
 
@@ -145,6 +189,20 @@ function normalizeIdempotencyKey(v: unknown): string | null {
   return s;
 }
 
+function getPayloadTier(payload: Record<string, unknown> | undefined, tierKey: string): string | null {
+  if (!payload) return null;
+  return cleanStr(payload[tierKey]);
+}
+
+function getPayloadQty(payload: Record<string, unknown> | undefined): number | null {
+  if (!payload) return null;
+  const v = payload["qty"];
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  const n = Math.trunc(v);
+  if (n < 1 || n > 10) return null;
+  return n;
+}
+
 /**
  * Pricing resolver (server truth).
  * In non-local envs: if it’s not in catalog, hard fail.
@@ -153,16 +211,52 @@ function normalizeIdempotencyKey(v: unknown): string | null {
 function resolvePricing(args: {
   site: string;
   formSlug: string;
+  payload?: Record<string, unknown> | undefined;
   clientPayment: PaidFormPaymentInfo;
-}): { amountCents: number; currency: string; description: string } {
-  const { site, formSlug, clientPayment } = args;
+}): { amountCents: number; currency: string; description: string; tier?: string | null } {
+  const { site, formSlug, payload, clientPayment } = args;
 
   const entry = PAID_FORM_CATALOG?.[site]?.[formSlug];
+
   if (entry) {
+    if (entry.type === "fixed") {
+      return {
+        amountCents: entry.amountCents,
+        currency: normalizeCurrency(entry.currency),
+        description: entry.description,
+        tier: null,
+      };
+    }
+
+    // tiered
+    const tierKey = entry.tierKey ?? "choice";
+    const tier = getPayloadTier(payload, tierKey);
+    if (!tier) {
+      throw new SubmitPaidFormError(
+        400,
+        "PRICING_INPUT_MISSING",
+        `Missing payload.${tierKey} for ${site}/${formSlug}`
+      );
+    }
+
+    const tierEntry = entry.tiers[tier];
+    if (!tierEntry) {
+      throw new SubmitPaidFormError(
+        400,
+        "PRICE_TIER_UNKNOWN",
+        `Unknown pricing tier "${tier}" for ${site}/${formSlug}`
+      );
+    }
+
+    // Optional: add qty to description (does NOT change amount)
+    const qty = getPayloadQty(payload) ?? 1;
+    const desc = qty > 1 ? `${tierEntry.description} (${qty} people)` : tierEntry.description;
+
     return {
-      amountCents: entry.amountCents,
+      amountCents: tierEntry.amountCents,
       currency: normalizeCurrency(entry.currency),
-      description: entry.description,
+      description: desc,
+      tier,
     };
   }
 
@@ -172,6 +266,7 @@ function resolvePricing(args: {
       amountCents: clientPayment.amountCents,
       currency: normalizeCurrency(clientPayment.currency),
       description: clientPayment.description,
+      tier: null,
     };
   }
 
@@ -258,9 +353,14 @@ export async function handleSubmitPaidForm(
   } = parsed.data;
 
   // Resolve canonical server pricing (client can’t control it)
-  const pricing = resolvePricing({ site, formSlug, clientPayment });
+  const pricing = resolvePricing({
+    site,
+    formSlug,
+    payload: payload as Record<string, unknown> | undefined,
+    clientPayment,
+  });
 
-  // Optional: if the UI sent a different amount, reject (prevents confused UI / stale pricing)
+  // Optional: if the UI sent a different amount/currency, reject (prevents stale UI / tampering)
   const clientCurrency = normalizeCurrency(clientPayment.currency);
   if (
     APP_ENV !== "local" &&
@@ -294,10 +394,9 @@ export async function handleSubmitPaidForm(
     sourceUrl: sourceUrl ?? null,
     payload: payload ?? null,
 
-    // If your forms.ts supports these fields (it looks like it does in your repo):
     status: "pending_payment",
     submissionKey,
-  } as any); // keep as any until your forms.ts types are strict for these columns
+  } as any);
 
   const submissionId = submission["id"] as string;
   if (!submissionId) {
@@ -324,13 +423,16 @@ export async function handleSubmitPaidForm(
         form_slug: clampMetadata(formSlug),
         form_submission_id: clampMetadata(submissionId),
         submission_key: clampMetadata(submissionKey),
+
+        // Useful for tiered pricing debugging (safe)
+        pricing_tier: clampMetadata(pricing.tier ?? null),
       },
 
       automatic_payment_methods: { enabled: true },
     },
     { idempotencyKey: stripeIdempotencyKey }
   );
-  
+
   if (!paymentIntent.client_secret) {
     throw new SubmitPaidFormError(
       502,

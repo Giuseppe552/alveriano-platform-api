@@ -4,8 +4,11 @@
   "description": "Backend API for the Alveriano multi-brand platform",
   "main": "dist/index.js",
   "scripts": {
+    "clean": "rm -rf dist lambda-dist",
     "build": "tsc",
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.ts",
+
+    "build:lambda": "rm -rf lambda-dist && mkdir -p lambda-dist/dist/http && npx esbuild src/http/apiHandler.ts --bundle --platform=node --target=node20 --format=cjs --outfile=lambda-dist/dist/http/apiHandler.js --sourcemap"
   },
   "keywords": [],
   "author": "",
@@ -13,11 +16,13 @@
   "devDependencies": {
     "@types/aws-lambda": "^8.10.159",
     "@types/node": "^25.0.3",
+    "esbuild": "^0.27.2",
     "supabase": "^2.67.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.957.0",
     "@supabase/supabase-js": "^2.87.1",
     "dotenv": "^17.2.3",
     "stripe": "^20.0.0",

@@ -1,3 +1,4 @@
+// src/handlers/submitForm.ts
 import { z } from "zod";
 import { createFormSubmission } from "../forms";
 
@@ -72,10 +73,29 @@ const PhoneSchema = z
   // relaxed: allows +, spaces, (), hyphens
   .regex(/^[0-9+() -]+$/, "Invalid phone format");
 
-const PayloadSchema = z
-  .record(z.string(), z.unknown())
-  .optional()
-  .default({});
+const PayloadSchema = z.record(z.string(), z.unknown()).optional().default({});
+
+/**
+ * Idempotency key (frontend can send this).
+ * IMPORTANT:
+ * - forms.ts clamps/validates again, but we validate here to keep errors clean and client-friendly.
+ * - keep permissive: only length + trimming. Do NOT over-regex this unless you want random rejects.
+ */
+const SubmissionKeySchema = z.string().trim().min(8).max(128).optional();
+
+function safeTrimString(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s.length ? s : null;
+}
+
+function getPayloadString(
+  payload: Record<string, unknown> | undefined,
+  key: string
+): string | null {
+  if (!payload) return null;
+  return safeTrimString(payload[key]);
+}
 
 /**
  * Strict request schema for POST /forms/submit
@@ -86,6 +106,9 @@ export const SubmitFormSchema = z
   .object({
     site: SiteSchema,
     formSlug: FormSlugSchema,
+
+    // NEW: allow top-level idempotency key (preferred)
+    submissionKey: SubmissionKeySchema,
 
     email: EmailSchema.optional(),
     name: z.string().trim().max(120).optional(),
@@ -120,22 +143,37 @@ export const SubmitFormSchema = z
         path: ["email"],
       });
     }
+
+    // Backwards compatibility: some clients may place submissionKey inside payload.
+    // If BOTH exist and mismatch, reject (prevents weird duplication/poisoning).
+    const payloadKey = getPayloadString(data.payload, "submissionKey");
+    const topKey = safeTrimString(data.submissionKey);
+
+    if (topKey && payloadKey && topKey !== payloadKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "submissionKey mismatch",
+        path: ["submissionKey"],
+      });
+    }
   });
 
 export type SubmitFormRequestBody = z.infer<typeof SubmitFormSchema>;
 
 export interface SubmitFormResult {
   submissionId: string;
+  deduped: boolean;
 }
 
 /**
  * Core logic for "POST /forms/submit" (unpaid forms).
  * Accepts unknown input, validates it, then writes to DB.
  */
-export async function handleSubmitForm(input: unknown): Promise<SubmitFormResult> {
+export async function handleSubmitForm(
+  input: unknown
+): Promise<SubmitFormResult> {
   const parsed = SubmitFormSchema.safeParse(input);
   if (!parsed.success) {
-    // Flatten is safe to return if you want client-side form mapping
     const details = parsed.error.flatten();
     throw new BadRequestError("Invalid request body", details);
   }
@@ -147,7 +185,21 @@ export async function handleSubmitForm(input: unknown): Promise<SubmitFormResult
     throw new BadRequestError("Invalid site");
   }
 
-  const submission = await createFormSubmission({
+  // Final idempotency key resolution:
+  // - Prefer top-level submissionKey
+  // - Fallback to payload.submissionKey for older clients
+  const submissionKey =
+    safeTrimString(body.submissionKey) ??
+    getPayloadString(body.payload, "submissionKey") ??
+    null;
+
+  /**
+   * IMPORTANT:
+   * - DB idempotency requires a unique constraint/index on (site, form_slug, submission_key) where submission_key is not null.
+   * - This handler can only report `deduped=true` if `createFormSubmission()` attaches a boolean flag to the returned object,
+   *   e.g. `return { ...row, deduped }` (recommended).
+   */
+  const submission: any = await createFormSubmission({
     site: body.site,
     formSlug: body.formSlug,
     email: body.email ?? null,
@@ -155,7 +207,16 @@ export async function handleSubmitForm(input: unknown): Promise<SubmitFormResult
     phone: body.phone ?? null,
     sourceUrl: body.sourceUrl ?? null,
     payload: body.payload,
+    submissionKey, // enables DB idempotency behaviour in forms.ts
   });
 
-  return { submissionId: submission["id"] as string };
+  const submissionId = submission?.id as string | undefined;
+  if (!submissionId) {
+    throw new Error("createFormSubmission returned no id");
+  }
+
+  // Will be true only after you add the small companion change in forms.ts (next step).
+  const deduped = submission?.deduped === true;
+
+  return { submissionId, deduped };
 }

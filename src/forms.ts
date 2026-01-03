@@ -1,3 +1,4 @@
+// src/forms.ts
 import { z } from "zod";
 import { supabase } from "./supabaseClient";
 
@@ -39,6 +40,15 @@ export type FormSubmissionRow = {
   submission_key: string | null;
   created_at?: string;
   updated_at?: string;
+};
+
+/**
+ * Extended return type to expose idempotency outcome.
+ * - deduped=false => row was inserted now
+ * - deduped=true  => row already existed (unique violation path)
+ */
+export type FormSubmissionResult = FormSubmissionRow & {
+  deduped: boolean;
 };
 
 class FormError extends Error {
@@ -174,7 +184,7 @@ function isUniqueViolation(err: any): boolean {
  */
 export async function createFormSubmission(
   input: FormSubmissionInput
-): Promise<FormSubmissionRow> {
+): Promise<FormSubmissionResult> {
   const parsed = InputSchema.safeParse(input);
   if (!parsed.success) {
     throw new FormError(
@@ -221,7 +231,7 @@ export async function createFormSubmission(
       .single();
 
     if (!ins.error && ins.data) {
-      return ins.data as FormSubmissionRow;
+      return { ...(ins.data as FormSubmissionRow), deduped: false };
     }
 
     if (ins.error && isUniqueViolation(ins.error)) {
@@ -243,7 +253,7 @@ export async function createFormSubmission(
         );
       }
 
-      return existingData as FormSubmissionRow;
+      return { ...(existingData as FormSubmissionRow), deduped: true };
     }
 
     // Non-unique DB error
@@ -279,5 +289,5 @@ export async function createFormSubmission(
     throw new FormError(500, "DB_WRITE_FAILED", "Failed to write form submission");
   }
 
-  return data as FormSubmissionRow;
+  return { ...(data as FormSubmissionRow), deduped: false };
 }
