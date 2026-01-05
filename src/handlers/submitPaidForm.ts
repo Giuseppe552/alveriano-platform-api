@@ -109,6 +109,146 @@ const PAID_FORM_CATALOG: Record<string, Record<string, PricingEntry>> = {
         },
       },
     },
+
+    /**
+     * Resinaro certified translation: tiered by payload.pageBand
+     * payload.pageBand: "1" | "2" | "3" | "4"
+     */
+    translation_certified: {
+      type: "tiered",
+      currency: "gbp",
+      tierKey: "pageBand",
+      tiers: {
+        "1": {
+          amountCents: 1800,
+          description: "1 page certified translation (+ signed declaration + UK 48h post) — Resinaro",
+        },
+        "2": {
+          amountCents: 2400,
+          description: "2 pages certified translation (+ signed declaration + UK 48h post) — Resinaro",
+        },
+        "3": {
+          amountCents: 2600,
+          description: "3 pages certified translation (+ signed declaration + UK 48h post) — Resinaro",
+        },
+        "4": {
+          amountCents: 3000,
+          description: "4 pages certified translation (+ signed declaration + UK 48h post) — Resinaro",
+        },
+      },
+    },
+
+    /**
+     * Resinaro family travel check: fixed price
+     */
+    family_travel_check: {
+      type: "fixed",
+      amountCents: 500,
+      currency: "gbp",
+      description: "Family Travel Quick Check (UK → Italy) — Resinaro",
+    },
+
+    /**
+     * Resinaro citizenship by descent: tiered by payload.service
+     * payload.service: "guide" | "121"
+     */
+    citizenship_descent: {
+      type: "tiered",
+      currency: "gbp",
+      tierKey: "service",
+      tiers: {
+        guide: {
+          amountCents: 3500,
+          description: "Italian citizenship by descent – £35 written guide (Resinaro)",
+        },
+        "121": {
+          amountCents: 17000,
+          description: "Italian citizenship by descent – £170 1:1 support (Resinaro)",
+        },
+      },
+    },
+
+    /**
+     * Resinaro citizenship by marriage: tiered by payload.option
+     * payload.option: "guide-35" | "check-170"
+     */
+    citizenship_by_marriage: {
+      type: "tiered",
+      currency: "gbp",
+      tierKey: "option",
+      tiers: {
+        "guide-35": {
+          amountCents: 3500,
+          description: "Italian citizenship by marriage guide (UK) — Resinaro",
+        },
+        "check-170": {
+          amountCents: 17000,
+          description: "Italian citizenship by marriage 1:1 document & plan check (UK) — Resinaro",
+        },
+      },
+    },
+
+    /**
+     * Resinaro citizenship language check: fixed price
+     */
+    citizenship_language_check: {
+      type: "fixed",
+      amountCents: 5000,
+      currency: "gbp",
+      description: "Citizenship Route & Language Strategy Mini-Review — Resinaro",
+    },
+
+    /**
+     * Resinaro visa assistance: tiered by payload.option
+     * payload.option: "intake-35" | "full-70"
+     */
+    visa_assistance: {
+      type: "tiered",
+      currency: "gbp",
+      tierKey: "option",
+      tiers: {
+        "intake-35": {
+          amountCents: 3500,
+          description: "Visa assistance intake consultation (UK) — Resinaro",
+        },
+        "full-70": {
+          amountCents: 7000,
+          description: "Visa assistance full service (UK) — Resinaro",
+        },
+      },
+    },
+
+    /**
+     * Resinaro advertising packages: tiered by payload.choice
+     * payload.choice: "dir-basic" | "dir-premium" | "web-5" | "web-audit" | "web-50"
+     */
+    advertise_package: {
+      type: "tiered",
+      currency: "gbp",
+      tierKey: "choice",
+      tiers: {
+        "dir-basic": {
+          amountCents: 1000,
+          description: "Resinaro — basic directory listing (first month)",
+        },
+        "dir-premium": {
+          amountCents: 6000,
+          description: "Resinaro — premium directory listing (first month)",
+        },
+        "web-5": {
+          amountCents: 5000,
+          description: "Resinaro — 5-page website build",
+        },
+        "web-audit": {
+          amountCents: 7000,
+          description: "Resinaro — SEO & conversion audit",
+        },
+        "web-50": {
+          amountCents: 30000,
+          description: "Resinaro — up to 50-page website build",
+        },
+      },
+    },
   },
 
   // Add other paid forms here over time (fixed or tiered).
