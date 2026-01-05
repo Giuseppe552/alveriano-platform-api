@@ -184,7 +184,10 @@ function corsHeadersForPath(
 
   const origin = headers["origin"];
   if (!origin) return null; // deny non-browser posting
-  if (!ALLOWED_ORIGINS.has(origin)) return null;
+
+  // Allow exact matches and Vercel preview deployments
+  const isAllowed = ALLOWED_ORIGINS.has(origin) || origin.endsWith(".vercel.app");
+  if (!isAllowed) return null;
 
   return {
     "Access-Control-Allow-Origin": origin,
