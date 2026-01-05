@@ -340,7 +340,10 @@ const routes: Record<string, RouteHandler> = {
   },
 
   "POST /forms/submit-paid": async (event, ctx) => {
-    if (!ctx.cors) {
+    // Allow server-to-server requests (no Origin header)
+    // Browser requests must have valid Origin
+    const origin = ctx.headers["origin"];
+    if (origin && !ctx.cors) {
       throw new HttpError(403, "Origin not allowed", "cors_denied");
     }
 
