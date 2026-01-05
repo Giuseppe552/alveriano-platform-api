@@ -427,7 +427,7 @@ const SubmitPaidFormSchema = z.object({
 
   email: z.string().trim().email().max(254).optional(),
   name: z.string().trim().min(1).max(120).optional(),
-  phone: z.string().trim().min(3).max(40).optional(),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
 
   sourceUrl: z.string().trim().url().max(2048).optional(),
 
