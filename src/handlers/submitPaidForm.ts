@@ -139,6 +139,43 @@ const PAID_FORM_CATALOG: Record<string, Record<string, PricingEntry>> = {
     },
 
     /**
+     * Resinaro certified translation (v2): tiered by payload.pageBand
+     * Pricing: £18 first page, then each additional page is £1 less (up to 6 pages).
+     * payload.pageBand: "1" | "2" | "3" | "4" | "5" | "6"
+     */
+    translation_certified_v2: {
+      type: "tiered",
+      currency: "gbp",
+      tierKey: "pageBand",
+      tiers: {
+        "1": {
+          amountCents: 1800,
+          description: "1 page certified translation (PDF by email) — Resinaro",
+        },
+        "2": {
+          amountCents: 3500,
+          description: "2 pages certified translation (PDF by email) — Resinaro",
+        },
+        "3": {
+          amountCents: 5100,
+          description: "3 pages certified translation (PDF by email) — Resinaro",
+        },
+        "4": {
+          amountCents: 6600,
+          description: "4 pages certified translation (PDF by email) — Resinaro",
+        },
+        "5": {
+          amountCents: 8000,
+          description: "5 pages certified translation (PDF by email) — Resinaro",
+        },
+        "6": {
+          amountCents: 9300,
+          description: "6 pages certified translation (PDF by email) — Resinaro",
+        },
+      },
+    },
+
+    /**
      * Resinaro family travel check: fixed price
      */
     family_travel_check: {
@@ -248,6 +285,16 @@ const PAID_FORM_CATALOG: Record<string, Record<string, PricingEntry>> = {
           description: "Resinaro — up to 50-page website build",
         },
       },
+    },
+
+    /**
+     * Resinaro CIE (Italian ID Card) assistance: fixed price £50
+     */
+    id_card_cie: {
+      type: "fixed",
+      amountCents: 5000,
+      currency: "gbp",
+      description: "Italian CIE (ID Card) assistance — Resinaro",
     },
   },
 

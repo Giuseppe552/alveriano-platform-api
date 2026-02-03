@@ -35,7 +35,9 @@ const ALLOWED_ORIGINS = new Set<string>([
   "https://alveriano.com",
   "https://www.alveriano.com",
   "http://127.0.0.1:3000",
+  "http://127.0.0.1:3004",
   "http://localhost:3000",
+  "http://localhost:3004",
 
 ]);
 
@@ -373,9 +375,9 @@ const routes: Record<string, RouteHandler> = {
         currency: result.currency,
         description: result.description,
       },
-      ctx.cors
+      ctx.cors ?? undefined
     );
-  },
+	  },
 
   "GET /health": async (_event, ctx) => {
     return jsonResponse(ctx.requestId, 200, { ok: true, ts: nowIso() });
