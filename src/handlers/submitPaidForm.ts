@@ -316,6 +316,11 @@ function clampMetadata(v: unknown): string | null {
   return s.length > MAX_METADATA_LEN ? s.slice(0, MAX_METADATA_LEN) : s;
 }
 
+function pickPayloadMeta(payload: Record<string, unknown> | undefined, key: string): string | null {
+  if (!payload) return null;
+  return clampMetadata(payload[key]);
+}
+
 function stableStringify(value: unknown): string {
   // Deterministic stringify for idempotency hashing
   const seen = new WeakSet<object>();
@@ -604,16 +609,22 @@ export async function handleSubmitPaidForm(
       ...(email ? { receipt_email: email } : {}),
 
       // Metadata must be short strings. Do not dump payload/PII.
-      metadata: {
-        app_env: APP_ENV,
-        site: clampMetadata(site),
-        form_slug: clampMetadata(formSlug),
-        form_submission_id: clampMetadata(submissionId),
-        submission_key: clampMetadata(submissionKey),
+      metadata: Object.fromEntries(
+        Object.entries({
+          app_env: APP_ENV,
+          site: clampMetadata(site),
+          form_slug: clampMetadata(formSlug),
+          form_submission_id: clampMetadata(submissionId),
+          submission_key: clampMetadata(submissionKey),
 
-        // Useful for tiered pricing debugging (safe)
-        pricing_tier: clampMetadata(pricing.tier ?? null),
-      },
+          // Useful for tiered pricing debugging (safe)
+          pricing_tier: clampMetadata(pricing.tier ?? null),
+
+          // Optional link fields for downstream CRM sync (safe, short)
+          booking_id: pickPayloadMeta(payload as Record<string, unknown> | undefined, "bookingId"),
+          application_id: pickPayloadMeta(payload as Record<string, unknown> | undefined, "applicationId"),
+        }).filter(([, v]) => v !== null)
+      ) as Record<string, string>,
 
       automatic_payment_methods: { enabled: true },
     },

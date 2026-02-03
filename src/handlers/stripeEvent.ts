@@ -60,6 +60,87 @@ function isCurrency(v: string): v is Currency {
   return v === "gbp" || v === "eur" || v === "usd";
 }
 
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+async function postJsonWithRetries(args: {
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+  timeoutMs: number;
+  attempts: number;
+}) {
+  let lastErr: unknown = null;
+  for (let i = 0; i < args.attempts; i++) {
+    try {
+      const res = await fetch(args.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...args.headers },
+        body: JSON.stringify(args.body),
+        signal: AbortSignal.timeout(args.timeoutMs),
+      });
+
+      if (res.ok) return;
+      const text = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+    } catch (e) {
+      lastErr = e;
+      if (i < args.attempts - 1) {
+        await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+      }
+    }
+  }
+  throw lastErr ?? new Error("unknown_error");
+}
+
+async function notifyResinaroCrm(args: {
+  eventId: string;
+  eventType: string;
+  site: string;
+  formSlug: string | null;
+  pricingTier: string | null;
+  formSubmissionId: string | null;
+  paymentIntentId: string;
+  amountCents: number;
+  currency: string;
+  receiptEmail: string | null;
+  metadata: Record<string, unknown> | null;
+}) {
+  if (args.site !== "resinaro") return;
+
+  const url = process.env["RESINARO_CRM_WEBHOOK_URL"];
+  const secret = process.env["RESINARO_CRM_WEBHOOK_SECRET"];
+  if (!isNonEmptyString(url) || !isNonEmptyString(secret)) {
+    log("error", {
+      msg: "resinaro_crm_webhook_not_configured",
+      hasUrl: Boolean(url && url.trim()),
+      hasSecret: Boolean(secret && secret.trim()),
+    });
+    return;
+  }
+
+  await postJsonWithRetries({
+    url,
+    headers: { Authorization: `Bearer ${secret}` },
+    body: {
+      eventId: args.eventId,
+      eventType: args.eventType,
+      site: args.site,
+      formSlug: args.formSlug,
+      pricingTier: args.pricingTier,
+      formSubmissionId: args.formSubmissionId,
+      paymentIntentId: args.paymentIntentId,
+      amountCents: args.amountCents,
+      currency: args.currency,
+      receiptEmail: args.receiptEmail,
+      metadata: args.metadata,
+    },
+    timeoutMs: 6000,
+    attempts: 3,
+  });
+}
+
 /**
  * Claim the Stripe event for processing (idempotency + concurrency guard).
  *
@@ -212,6 +293,8 @@ export async function handleStripeEvent(
 
         const formSubmissionId = safeStr(metadata["form_submission_id"], 64);
         const site = (safeStr(metadata["site"], 32) ?? "unknown").toLowerCase();
+        const formSlug = safeStr(metadata["form_slug"], 64);
+        const pricingTier = safeStr(metadata["pricing_tier"], 64);
 
         const amountCents =
           typeof pi.amount_received === "number" ? pi.amount_received : pi.amount;
@@ -260,6 +343,21 @@ export async function handleStripeEvent(
             throw new Error(`form_submissions update failed: ${upd.error.message}`);
           }
         }
+
+        // Sync into Resinaro CRM (this is part of the operational workflow).
+        await notifyResinaroCrm({
+          eventId: event.id,
+          eventType: event.type,
+          site,
+          formSlug: formSlug ?? null,
+          pricingTier: pricingTier ?? null,
+          formSubmissionId: formSubmissionId ?? null,
+          paymentIntentId: pi.id,
+          amountCents,
+          currency: currencyRaw,
+          receiptEmail: typeof pi.receipt_email === "string" ? pi.receipt_email : null,
+          metadata,
+        });
 
         await markStripeEventStatus(event.id, "succeeded", null);
 
